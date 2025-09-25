@@ -377,7 +377,7 @@ const gameData = {
   // —— ㄩㄥ（對照 ㄧㄥ）——
   {word:'勇 敢',answer:['ㄩㄥˇ','ㄍㄢˇ'],options:[['ㄩㄥˇ','ㄍㄢˇ'],['ㄧㄥˇ','ㄍㄢˇ']]},
   {word:'功 用',answer:['ㄍㄨㄥ','ㄩㄥˋ'],options:[['ㄍㄨㄥ','ㄩㄥˋ'],['ㄍㄨㄥ','ㄧㄥˋ']]},
-  {word:'擁 抱',answer:['ㄩㄥ','ㄅㄠˋ'],options:[['ㄩㄥ','ㄅㄠˋ'],['ㄧㄥ','ㄅㄠˋ']]},
+  {word:'擁 抱',answer:['ㄩㄥˇ','ㄅㄠˋ'],options:[['ㄩㄥˇ','ㄅㄠˋ'],['ㄧㄥˇ','ㄅㄠˋ']]},
   {word:'游 泳',answer:['ㄧㄡˊ','ㄩㄥˇ'],options:[['ㄧㄡˊ','ㄩㄥˇ'],['ㄧㄡˊ','ㄧㄥˇ']]},
   {word:'永 遠',answer:['ㄩㄥˇ','ㄩㄢˇ'],options:[['ㄩㄥˇ','ㄩㄢˇ'],['ㄧㄥˇ','ㄩㄢˇ']]},
   {word:'貧 窮',answer:['ㄆㄧㄣˊ','ㄑㄩㄥˊ'],options:[['ㄆㄧㄣˊ','ㄑㄩㄥˊ'],['ㄆㄧㄣˊ','ㄑㄧㄥˊ']]},
@@ -681,7 +681,7 @@ function updateScore(){scoreDisplay.textContent=`答對: ${score.correct} | 答�
 function showResults(){
   gameScreen.classList.add('hidden');resultsScreen.classList.remove('hidden');
   const total=questions.length; const scoreNum=total>0?Math.round((score.correct/total)*100):0;
-  document.getElementById('final-score').textContent=`得分：${scoreNum} 分（答對 ${score.correct} / 共 ${total} 題）`;
+  document.getElementById('final-score').textContent=`${scoreNum} 分（答對 ${score.correct} / ${total} 題）`;
   const body=document.getElementById('results-table-body'); body.innerHTML='';
   userAnswers.forEach(item=>{
     const ok=JSON.stringify(item.userAnswer)===JSON.stringify(item.correctAnswer);
@@ -733,3 +733,4 @@ function showMenu(){gameScreen.classList.add('hidden');resultsScreen.classList.a
 
 </body>
 </html>
+
