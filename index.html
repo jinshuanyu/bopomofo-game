@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>注音小達人</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Iansui&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+  body{font-family:'iansui','Noto Sans TC',sans-serif;touch-action:manipulation;}
+  .card{background:#fff;border-radius:1rem;padding:clamp(.6rem,3vw,1rem);box-shadow:0 10px 15px -3px rgb(0 0 0 / .05),0 4px 6px -4px rgb(0 0 0 / .05);border:2px solid #fde68a;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;padding:.5rem .9rem;border-radius:.65rem;font-weight:700;cursor:pointer;transition:all .2s;border:2px solid transparent;box-shadow:0 2px 4px -1px rgb(0 0 0 /.1),0 1px 2px -1px rgb(0 0 0 /.1);}
+  .btn-primary{background:#fb923c;color:#fff}.btn-primary:hover:not(:disabled){background:#f97316}
+  .btn-secondary{background:#e0f2fe;color:#0c4a6e}.btn-secondary:hover{background:#bae6fd}
+  .btn-accent{background:#4ade80;color:#14532d}.btn-accent:hover{background:#22c55e}
+  .btn-success{background:#22c55e;color:#fff}.btn-success:hover{background:#16a34a}
+  .btn:disabled{opacity:.7;cursor:not-allowed}
+  .hidden{display:none}
+
+  /* 注音結構（固定三行；輕聲˙在整組最上方） */
+  :root{ --zh-gap: 0.18em; }
+  .zhuyin-part{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--zh-gap);line-height:1;--part-h: calc(3 * 1em + 2 * var(--zh-gap));height: var(--part-h);}
+  .zhuyin-glyph{position:relative;line-height:1;display:inline-block}
+  .zhuyin-glyph + .zhuyin-glyph{ margin-top:-0.02em; }
+  .zhuyin-tone{position:absolute;top:-0.35em;right:-0.38em;font-size:0.9em;}
+  .zhuyin-dot{position:absolute;left:50%;transform:translateX(-50%);top: calc(50% - 1.5em - var(--zh-gap) - 0.2em);font-size:0.82em;line-height:1;pointer-events:none;}
+
+  /* 遊戲版面 */
+  .qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;height: clamp(300px, 60vh, 400px);height: clamp(300px, 60svh, 400px);height: clamp(300px, 60dvh, 400px);}
+  .hanzi-col{background:#fffbeb;border-radius:.9rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6rem;height:100%;}
+  #right-col{background:#fffbeb;border-radius:.9rem;padding:.6rem;display:grid;grid-template-rows:1fr 1fr;gap:.6rem;height:100%;}
+  .right-row{display:flex;}
+  .fixed-zh{flex:1;border-radius:.8rem;background:#fefce8;display:flex;align-items:center;justify-content:center;}
+  .opts-row{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+  .zh-option{border-radius:.8rem;background:#fefce8;border:2px solid #fef3c7;display:flex;align-items:center;justify-content:center;padding:.2rem .3rem;transition:transform .08s ease, background .15s ease, border-color .15s ease;}
+  .zh-option:hover:not(:disabled){ background:#fef3c7; transform:translateY(-1px); }
+  .zh-option.correct{ background:#dcfce7 !important; border-color: #86efac !important; }
+  .zh-option.wrong{ background:#fee2e2 !important; border-color: #fca5a5 !important; }
+
+  /* 尺寸同步 */
+  #game-screen{ --rowH: 160px; --unit: 160px; }
+  .question-char{font-size:clamp(1.8rem, calc(var(--unit) * .8), 6rem);line-height:1.1;cursor:pointer;}
+  #game-screen .zh-wrap{height:100%;display:flex;align-items:center;justify-content:center;font-size: clamp(1rem, calc(var(--unit) / 4), 1.6rem);}
+
+  /* 回顧頁 */
+  #results-screen{ --zh-fs:.88rem; }
+  .result-zhuyin-cell .zhuyin-part{font-size:var(--zh-fs);height: calc(3 * 1em + 2 * var(--zh-gap));display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  thead.sticky{z-index:20;background:#fff}
+
+  /* 學習頁例字：≥390px 寬改為 4 欄 */
+  #tutorial-examples{ display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  @media (min-width: 390px){ #tutorial-examples{ grid-template-columns: repeat(4,minmax(0,1fr)); } }
+  @media (max-width: 420px){ .qa-grid{gap:.5rem} #right-col, .hanzi-col {padding:.5rem} .opts-row, #right-col {gap:.5rem} .btn{padding:.45rem .7rem} }
+</style>
+</head>
+<body class="bg-amber-50">
+<main class="min-h-[calc(100vh-120px)] flex items-center justify-center p-2 sm:p-4">
+
+<!-- 主選單 -->
+<div id="main-menu" class="card text-center w-full max-w-md">
+  <h1 class="text-3xl sm:text-3xl font-bold text-orange-800 mb-2">注音小達人</h1>
+  <p class="text-amber-700 mb-4 text-lg">選一個關卡開始挑戰！</p>
+  <div class="flex flex-col gap-3">
+    <button onclick="showTutorial('o_uo')" class="btn btn-primary text-xl w-full">第一關：ㄛ / ㄨㄛ / ㄡ</button>
+    <button onclick="showTutorial('eng_ong')" class="btn btn-primary text-xl w-full">第二關：ㄥ / ㄨㄥ</button>
+    <button onclick="showTutorial('en_eng')" class="btn btn-primary text-xl w-full">第三關：ㄣ / ㄥ</button>
+    <button onclick="showTutorial('finals')" class="btn btn-primary text-xl w-full">第四關：結合韻</button>
+    <button onclick="startMixedChallenge()" class="btn btn-success text-xl w-full">小達人挑戰賽</button>
+  </div>
+</div>
+
+<!-- 教學頁 -->
+<div id="tutorial-screen" class="card w-full max-w-2xl hidden">
+  <h2 id="tutorial-title" class="text-2xl font-bold text-center text-orange-800 mb-4"></h2>
+  <div id="tutorial-rule" class="text-lg text-gray-700 leading-relaxed bg-amber-50 p-4 rounded-lg mb-4"></div>
+  <div id="tutorial-examples" class="gap-3 mb-4"></div>
+  <div class="flex gap-3">
+    <button onclick="showMenu()" class="btn btn-secondary flex-1">返回主頁</button>
+    <button id="start-practice-btn" class="btn btn-accent flex-1 text-lg">開始練習！</button>
+  </div>
+</div>
+
+<!-- 遊戲頁 -->
+<div id="game-screen" class="card w-full max-w-2xl hidden">
+  <div class="flex justify-between items-center mb-2">
+    <h2 id="game-title" class="text-lg font-bold text-orange-600"></h2>
+    <div id="score" class="text-sm font-semibold text-gray-600"></div>
+  </div>
+
+  <div class="qa-grid">
+    <div class="hanzi-col">
+      <span id="hanzi-1" class="question-char"></span>
+      <span id="hanzi-2" class="question-char"></span>
+    </div>
+    <div id="right-col">
+      <div id="right-row-1" class="right-row"></div>
+      <div id="right-row-2" class="right-row"></div>
+    </div>
+  </div>
+
+  <div id="feedback" class="text-center text-base font-bold h-6 my-2 min-h-[1.5rem]"></div>
+
+  <div class="w-full mt-auto flex flex-col gap-2">
+    <div class="flex gap-2">
+      <button id="listen-btn" class="btn btn-accent px-3 py-2 text-base shrink-0" title="重聽發音" aria-label="重聽發音">🔊 重聽發音</button>
+      <button id="next-btn" onclick="nextQuestion()" class="btn btn-primary hidden flex-1">下一題</button>
+      <button id="finish-btn" onclick="showResults()" class="btn btn-primary hidden flex-1">完成測驗</button>
+    </div>
+    <button onclick="showMenu()" class="btn btn-secondary w-full">返回主頁</button>
+  </div>
+</div>
+
+<!-- 回顧頁 -->
+<div id="results-screen" class="card w-full max-w-2xl hidden">
+  <h2 class="text-3xl font-bold text-center text-orange-800 mb-4">測驗結果</h2>
+  <div id="final-score" class="text-xl text-center mb-4 font-semibold"></div>
+  <div class="max-h-80 overflow-y-auto pr-2">
+    <table class="w-full text-center">
+      <thead class="sticky top-0 border-b-2 border-amber-200">
+        <tr>
+          <th class="p-3 text-amber-800 font-bold">詞語</th>
+          <th class="p-3 text-amber-800 font-bold">你的答案</th>
+          <th class="p-3 text-amber-800 font-bold">正確答案</th>
+        </tr>
+      </thead>
+      <tbody id="results-table-body"></tbody>
+    </table>
+  </div>
+  <div class="mt-4 flex gap-3 justify-center">
+    <button id="redo-wrong-btn" class="btn btn-success hidden">重做錯題</button>
+    <button onclick="showMenu()" class="btn btn-secondary">返回主頁</button>
+  </div>
+</div>
+
+<script>
+const gameData = {
+  'o_uo':{title:'ㄛ / ㄨㄛ / ㄡ',
+    tutorial:{title:'闖關秘訣：ㄛ / ㄨㄛ / ㄡ',rule:`<p>⭐ㄅ、ㄆ、ㄇ、ㄈ 加 ㄛ（不加 ㄨㄛ）<br>⭐ㄉㄊㄋㄌ ㄍㄎㄏ ㄓㄔㄕㄖ ㄗㄘㄙ 加 ㄨㄛ<br>⭐ㄡ 和 ㄛ 要分清楚</p>` ,
+      examples:[{word:'伯',display:'ㄅㄛˊ'},{word:'坡',display:'ㄆㄛ'},{word:'磨',display:'ㄇㄛˊ'},{word:'佛',display:'ㄈㄛˊ'},{word:'多',display:'ㄉㄨㄛ'},{word:'火',display:'ㄏㄨㄛˇ'},{word:'狗',display:'ㄍㄡˇ'},{word:'口',display:'ㄎㄡˇ'}]},
+    questions:[
+{word:'伯 父',answer:['ㄅㄛˊ','ㄈㄨˋ'],options:[['ㄅㄛˊ','ㄈㄨˋ'],['ㄅㄨㄛˊ','ㄈㄨˋ']]},
+{word:'玻 璃',answer:['ㄅㄛ','ㄌㄧˊ'],options:[['ㄅㄛ','ㄌㄧˊ'],['ㄅㄨㄛ','ㄌㄧˊ']]},
+{word:'脖 子',answer:['ㄅㄛˊ','˙ㄗ'],options:[['ㄅㄛˊ','˙ㄗ'],['ㄅㄨㄛˊ','˙ㄗ']]},
+{word:'山 坡',answer:['ㄕㄢ','ㄆㄛ'],options:[['ㄕㄢ','ㄆㄛ'],['ㄕㄢ','ㄆㄨㄛ']]},
+{word:'潑 水',answer:['ㄆㄛ','ㄕㄨㄟˇ'],options:[['ㄆㄛ','ㄕㄨㄟˇ'],['ㄆㄨㄛ','ㄕㄨㄟˇ']]},
+{word:'外 婆',answer:['ㄨㄞˋ','ㄆㄛˊ'],options:[['ㄨㄞˋ','ㄆㄛˊ'],['ㄨㄞˋ','ㄆㄨㄛˊ']]},
+{word:'剖 面',answer:['ㄆㄡˇ','ㄇㄧㄢˋ'],options:[['ㄆㄡˇ','ㄇㄧㄢˋ'],['ㄆㄛˇ','ㄇㄧㄢˋ']]},
+{word:'蘑 菇',answer:['ㄇㄛˊ','ㄍㄨ'],options:[['ㄇㄛˊ','ㄍㄨ'],['ㄇㄨㄛˊ','ㄍㄨ']]},
+{word:'摩 擦',answer:['ㄇㄛˊ','ㄘㄚ'],options:[['ㄇㄛˊ','ㄘㄚ'],['ㄇㄨㄛˊ','ㄘㄚ']]},
+{word:'抹 布',answer:['ㄇㄛˇ','ㄅㄨˋ'],options:[['ㄇㄛˇ','ㄅㄨˋ'],['ㄇㄨㄛˇ','ㄅㄨˋ']]},
+{word:'計 謀',answer:['ㄐㄧˋ','ㄇㄡˊ'],options:[['ㄐㄧˋ','ㄇㄡˊ'],['ㄐㄧˋ','ㄇㄛˊ']]},
+{word:'佛 教',answer:['ㄈㄛˊ','ㄐㄧㄠˋ'],options:[['ㄈㄛˊ','ㄐㄧㄠˋ'],['ㄈㄨㄛˊ','ㄐㄧㄠˋ']]},
+
+{word:'多 少',answer:['ㄉㄨㄛ','ㄕㄠˇ'],options:[['ㄉㄨㄛ','ㄕㄠˇ'],['ㄉㄛ','ㄕㄠˇ']]},
+{word:'花 朵',answer:['ㄏㄨㄚ','ㄉㄨㄛˇ'],options:[['ㄏㄨㄚ','ㄉㄨㄛˇ'],['ㄏㄨㄚ','ㄉㄛˇ']]},
+{word:'蝌 蚪',answer:['ㄎㄜ','ㄉㄡˇ'],options:[['ㄎㄜ','ㄉㄡˇ'],['ㄎㄜ','ㄉㄛˇ']]},
+{word:'紅 豆',answer:['ㄏㄨㄥˊ','ㄉㄡˋ'],options:[['ㄏㄨㄥˊ','ㄉㄡˋ'],['ㄏㄨㄥˊ','ㄉㄛˋ']]},
+{word:'鴕 鳥',answer:['ㄊㄨㄛˊ','ㄋㄧㄠˇ'],options:[['ㄊㄨㄛˊ','ㄋㄧㄠˇ'],['ㄊㄛˊ','ㄋㄧㄠˇ']]},
+{word:'拖 把',answer:['ㄊㄨㄛ','ㄅㄚˇ'],options:[['ㄊㄨㄛ','ㄅㄚˇ'],['ㄊㄛ','ㄅㄚˇ']]},
+{word:'小 偷',answer:['ㄒㄧㄠˇ','ㄊㄡ'],options:[['ㄒㄧㄠˇ','ㄊㄡ'],['ㄒㄧㄠˇ','ㄊㄛ']]},
+{word:'頭 髮',answer:['ㄊㄡˊ','ㄈㄚˇ'],options:[['ㄊㄡˊ','ㄈㄚˇ'],['ㄊㄛˊ','ㄈㄚˇ']]},
+{word:'糯 米',answer:['ㄋㄨㄛˋ','ㄇㄧˇ'],options:[['ㄋㄨㄛˋ','ㄇㄧˇ'],['ㄋㄛˋ','ㄇㄧˇ']]},
+
+{word:'駱 駝',answer:['ㄌㄨㄛˋ','ㄊㄨㄛˊ'],options:[['ㄌㄨㄛˋ','ㄊㄨㄛˊ'],['ㄌㄛˋ','ㄊㄨㄛˊ']]},
+{word:'螺 絲',answer:['ㄌㄨㄛˊ','ㄙ'],options:[['ㄌㄨㄛˊ','ㄙ'],['ㄌㄛˊ','ㄙ']]},
+{word:'大 樓',answer:['ㄉㄚˋ','ㄌㄡˊ'],options:[['ㄉㄚˋ','ㄌㄡˊ'],['ㄉㄚˋ','ㄌㄛˊ']]},
+{word:'漏 水',answer:['ㄌㄡˋ','ㄕㄨㄟˇ'],options:[['ㄌㄡˋ','ㄕㄨㄟˇ'],['ㄌㄛˋ','ㄕㄨㄟˇ']]},
+
+{word:'水 果',answer:['ㄕㄨㄟˇ','ㄍㄨㄛˇ'],options:[['ㄕㄨㄟˇ','ㄍㄨㄛˇ'],['ㄕㄨㄟˇ','ㄍㄛˇ']]},
+{word:'鍋 子',answer:['ㄍㄨㄛ','˙ㄗ'],options:[['ㄍㄨㄛ','˙ㄗ'],['ㄍㄛ','˙ㄗ']]},
+{word:'小 狗',answer:['ㄒㄧㄠˇ','ㄍㄡˇ'],options:[['ㄒㄧㄠˇ','ㄍㄡˇ'],['ㄒㄧㄠˇ','ㄍㄛˇ']]},
+{word:'水 溝',answer:['ㄕㄨㄟˇ','ㄍㄡ'],options:[['ㄕㄨㄟˇ','ㄍㄡ'],['ㄕㄨㄟˇ','ㄍㄛ']]},
+{word:'擴 大',answer:['ㄎㄨㄛˋ','ㄉㄚˋ'],options:[['ㄎㄨㄛˋ','ㄉㄚˋ'],['ㄎㄛˋ','ㄉㄚˋ']]},
+{word:'開 闊',answer:['ㄎㄞ','ㄎㄨㄛˋ'],options:[['ㄎㄞ','ㄎㄨㄛˋ'],['ㄎㄞ','ㄎㄛˋ']]},
+{word:'入 口',answer:['ㄖㄨˋ','ㄎㄡˇ'],options:[['ㄖㄨˋ','ㄎㄡˇ'],['ㄖㄨˋ','ㄎㄛˇ']]},
+{word:'鈕 扣',answer:['ㄋㄧㄡˇ','ㄎㄡˋ'],options:[['ㄋㄧㄡˇ','ㄎㄡˋ'],['ㄋㄧㄡˇ','ㄎㄛˋ']]},
+{word:'火 車',answer:['ㄏㄨㄛˇ','ㄔㄜ'],options:[['ㄏㄨㄛˇ','ㄔㄜ'],['ㄏㄛˇ','ㄔㄜ']]},
+{word:'生 活',answer:['ㄕㄥ','ㄏㄨㄛˊ'],options:[['ㄕㄥ','ㄏㄨㄛˊ'],['ㄕㄥ','ㄏㄛˊ']]},
+{word:'喉 嚨',answer:['ㄏㄡˊ','ㄌㄨㄥˊ'],options:[['ㄏㄡˊ','ㄌㄨㄥˊ'],['ㄏㄛˊ','ㄌㄨㄥˊ']]},
+{word:'後 面',answer:['ㄏㄡˋ','ㄇㄧㄢˋ'],options:[['ㄏㄡˋ','ㄇㄧㄢˋ'],['ㄏㄛˋ','ㄇㄧㄢˋ']]},
+
+{word:'桌 椅',answer:['ㄓㄨㄛ','ㄧˇ'],options:[['ㄓㄨㄛ','ㄧˇ'],['ㄓㄛ','ㄧˇ']]},
+{word:'手 鐲',answer:['ㄕㄡˇ','ㄓㄨㄛˊ'],options:[['ㄕㄡˇ','ㄓㄨㄛˊ'],['ㄕㄡˇ','ㄓㄛˊ']]},
+{word:'週 末',answer:['ㄓㄡ','ㄇㄛˋ'],options:[['ㄓㄡ','ㄇㄛˋ'],['ㄓㄡ','ㄇㄨㄛˋ']]},
+{word:'龍 舟',answer:['ㄌㄨㄥˊ','ㄓㄡ'],options:[['ㄌㄨㄥˊ','ㄓㄡ'],['ㄌㄨㄥˊ','ㄓㄛ']]},
+{word:'綽 號',answer:['ㄔㄨㄛˋ','ㄏㄠˋ'],options:[['ㄔㄨㄛˋ','ㄏㄠˋ'],['ㄔㄛˋ','ㄏㄠˋ']]},
+
+{word:'抽 獎',answer:['ㄔㄡ','ㄐㄧㄤˇ'],options:[['ㄔㄡ','ㄐㄧㄤˇ'],['ㄔㄛ','ㄐㄧㄤˇ']]},
+{word:'小 丑',answer:['ㄒㄧㄠˇ','ㄔㄡˇ'],options:[['ㄒㄧㄠˇ','ㄔㄡˇ'],['ㄒㄧㄠˇ','ㄔㄛˇ']]},
+{word:'說 話',answer:['ㄕㄨㄛ','ㄏㄨㄚˋ'],options:[['ㄕㄨㄛ','ㄏㄨㄚˋ'],['ㄕㄛ','ㄏㄨㄚˋ']]},
+{word:'閃 爍',answer:['ㄕㄢˇ','ㄕㄨㄛˋ'],options:[['ㄕㄢˇ','ㄕㄨㄛˋ'],['ㄕㄢˇ','ㄕㄛˋ']]},
+{word:'收 到',answer:['ㄕㄡ','ㄉㄠˋ'],options:[['ㄕㄡ','ㄉㄠˋ'],['ㄕㄛ','ㄉㄠˋ']]},
+{word:'左 手',answer:['ㄗㄨㄛˇ','ㄕㄡˇ'],options:[['ㄗㄨㄛˇ','ㄕㄡˇ'],['ㄗㄛˇ','ㄕㄡˇ']]},
+{word:'微 弱',answer:['ㄨㄟ','ㄖㄨㄛˋ'],options:[['ㄨㄟˊ','ㄖㄨㄛˋ'],['ㄨㄟˊ','ㄖㄛˋ']]},
+{word:'若 是',answer:['ㄖㄨㄛˋ','ㄕˋ'],options:[['ㄖㄨㄛˋ','ㄕˋ'],['ㄖㄛˋ','ㄕˋ']]},
+{word:'肉 鬆',answer:['ㄖㄡˋ','ㄙㄨㄥ'],options:[['ㄖㄡˋ','ㄙㄨㄥ'],['ㄖㄛˋ','ㄙㄨㄥ']]},
+{word:'柔 軟',answer:['ㄖㄡˊ','ㄖㄨㄢˇ'],options:[['ㄖㄡˊ','ㄖㄨㄢˇ'],['ㄖㄛˊ','ㄖㄨㄢˇ']]},
+
+{word:'座 位',answer:['ㄗㄨㄛˋ','ㄨㄟˋ'],options:[['ㄗㄨㄛˋ','ㄨㄟˋ'],['ㄗㄛˋ','ㄨㄟˋ']]},
+{word:'工 作',answer:['ㄍㄨㄥ','ㄗㄨㄛˋ'],options:[['ㄍㄨㄥ','ㄗㄨㄛˋ'],['ㄍㄨㄥ','ㄗㄛˋ']]},
+{word:'走 路',answer:['ㄗㄡˇ','ㄌㄨˋ'],options:[['ㄗㄡˇ','ㄌㄨˋ'],['ㄗㄛˇ','ㄌㄨˋ']]},
+{word:'演 奏',answer:['ㄧㄢˇ','ㄗㄡˋ'],options:[['ㄧㄢˇ','ㄗㄡˋ'],['ㄧㄢˇ','ㄗㄨㄛˋ']]},
+{word:'錯 字',answer:['ㄘㄨㄛˋ','ㄗˋ'],options:[['ㄘㄨㄛˋ','ㄗˋ'],['ㄘㄛˋ','ㄗˋ']]},
+{word:'銼 刀',answer:['ㄘㄨㄛˋ','ㄉㄠ'],options:[['ㄘㄨㄛˋ','ㄉㄠ'],['ㄘㄛˋ','ㄉㄠ']]},
+{word:'縮 小',answer:['ㄙㄨㄛ','ㄒㄧㄠˇ'],options:[['ㄙㄨㄛ','ㄒㄧㄠˇ'],['ㄙㄛ','ㄒㄧㄠˇ']]},
+{word:'所 以',answer:['ㄙㄨㄛˇ','ㄧˇ'],options:[['ㄙㄨㄛˇ','ㄧˇ'],['ㄙㄛˇ','ㄧˇ']]},
+{word:'咳 嗽',answer:['ㄎㄜˊ','ㄙㄡˋ'],options:[['ㄎㄜˊ','ㄙㄡˋ'],['ㄎㄜˊ','ㄙㄛˋ']]},
+{word:'搜 尋',answer:['ㄙㄡ','ㄒㄩㄣˊ'],options:[['ㄙㄡ','ㄒㄩㄣˊ'],['ㄙㄛ','ㄒㄩㄣˊ']]},
+
+    ]},
+  'eng_ong':{title:'ㄥ / ㄨㄥ',
+    tutorial:{title:'闖關秘訣：ㄥ / ㄨㄥ',rule:`<p>⭐ㄅ、ㄆ、ㄇ、ㄈ 加 ㄥ（不加 ㄨㄥ）<br>⭐ㄉㄊㄋㄌ ㄍㄎㄏ ㄓㄔㄕㄖ ㄗㄘㄙ 可加 ㄥ 也可加 ㄨㄥ（ㄕ 不加 ㄨㄥ）<br>⭐ㄉ～ㄙ 開頭、跟「恐龍」押韻的，要加 ㄨㄥ。</p>` ,
+      examples:[{word:'繃',display:'ㄅㄥ'},{word:'朋',display:'ㄆㄥˊ'},{word:'夢',display:'ㄇㄥˋ'},{word:'風',display:'ㄈㄥ'},{word:'恐',display:'ㄎㄨㄥˇ'},{word:'龍',display:'ㄌㄨㄥˊ'},{word:'燈',display:'ㄉㄥ'},{word:'成',display:'ㄔㄥˊ'},]},
+    questions:[
+// ㄥ vs ㄨㄥ（二字詞）題庫
+
+{word:'山 崩',answer:['ㄕㄢ','ㄅㄥ'],options:[['ㄕㄢ','ㄅㄥ'],['ㄕㄢ','ㄅㄨㄥ']]},
+{word:'蹦 跳',answer:['ㄅㄥˋ','ㄊㄧㄠˋ'],options:[['ㄅㄥˋ','ㄊㄧㄠˋ'],['ㄅㄨㄥˋ','ㄊㄧㄠˋ']]},
+{word:'水 泵',answer:['ㄕㄨㄟˇ','ㄅㄥˋ'],options:[['ㄕㄨㄟˇ','ㄅㄥˋ'],['ㄕㄨㄟˇ','ㄅㄨㄥˋ']]},
+{word:'朋 友',answer:['ㄆㄥˊ','ㄧㄡˇ'],options:[['ㄆㄥˊ','ㄧㄡˇ'],['ㄆㄨㄥˊ','ㄧㄡˇ']]},
+{word:'帳 棚',answer:['ㄓㄤˋ','ㄆㄥˊ'],options:[['ㄓㄤˋ','ㄆㄥˊ'],['ㄓㄤˋ','ㄆㄨㄥˊ']]},
+{word:'澎 湖',answer:['ㄆㄥˊ','ㄏㄨˊ'],options:[['ㄆㄥˊ','ㄏㄨˊ'],['ㄆㄨㄥˊ','ㄏㄨˊ']]},
+{word:'膨 脹',answer:['ㄆㄥˊ','ㄓㄤˋ'],options:[['ㄆㄥˊ','ㄓㄤˋ'],['ㄆㄨㄥˊ','ㄓㄤˋ']]},
+{word:'蒙 古',answer:['ㄇㄥˊ','ㄍㄨˇ'],options:[['ㄇㄥˊ','ㄍㄨˇ'],['ㄇㄨㄥˊ','ㄍㄨˇ']]},
+{word:'檸 檬',answer:['ㄋㄧㄥˊ','ㄇㄥˊ'],options:[['ㄋㄧㄥˊ','ㄇㄥˊ'],['ㄋㄧㄥˊ','ㄇㄨㄥˊ']]},
+{word:'蚱 蜢',answer:['ㄓㄚˋ','ㄇㄥˇ'],options:[['ㄓㄚˋ','ㄇㄥˇ'],['ㄓㄚˋ','ㄇㄨㄥˇ']]},
+{word:'猛 獸',answer:['ㄇㄥˇ','ㄕㄡˋ'],options:[['ㄇㄥˇ','ㄕㄡˋ'],['ㄇㄨㄥˇ','ㄕㄡˋ']]},
+{word:'縫 紉',answer:['ㄈㄥˊ','ㄖㄣˋ'],options:[['ㄈㄥˊ','ㄖㄣˋ'],['ㄈㄨㄥˊ','ㄖㄣˋ']]},
+{word:'山 峰',answer:['ㄕㄢ','ㄈㄥ'],options:[['ㄕㄢ','ㄈㄥ'],['ㄕㄢ','ㄈㄨㄥ']]},
+{word:'風 車',answer:['ㄈㄥ','ㄔㄜ'],options:[['ㄈㄥ','ㄔㄜ'],['ㄈㄨㄥ','ㄔㄜ']]},
+{word:'鳳 梨',answer:['ㄈㄥˋ','ㄌㄧˊ'],options:[['ㄈㄥˋ','ㄌㄧˊ'],['ㄈㄨㄥˋ','ㄌㄧˊ']]},
+
+{word:'燈 塔',answer:['ㄉㄥ','ㄊㄚˇ'],options:[['ㄉㄥ','ㄊㄚˇ'],['ㄉㄨㄥ','ㄊㄚˇ']]},
+{word:'登 記',answer:['ㄉㄥ','ㄐㄧˋ'],options:[['ㄉㄥ','ㄐㄧˋ'],['ㄉㄨㄥ','ㄐㄧˋ']]},
+{word:'東 西',answer:['ㄉㄨㄥ','ㄒㄧ'],options:[['ㄉㄨㄥ','ㄒㄧ'],['ㄉㄥ','ㄒㄧ']]},
+{word:'動 作',answer:['ㄉㄨㄥˋ','ㄗㄨㄛˋ'],options:[['ㄉㄨㄥˋ','ㄗㄨㄛˋ'],['ㄉㄥˋ','ㄗㄨㄛˋ']]},
+{word:'疼 愛',answer:['ㄊㄥˊ','ㄞˋ'],options:[['ㄊㄥˊ','ㄞˋ'],['ㄊㄨㄥˊ','ㄞˋ']]},
+{word:'藤 蔓',answer:['ㄊㄥˊ','ㄇㄢˋ'],options:[['ㄊㄥˊ','ㄇㄢˋ'],['ㄊㄨㄥˊ','ㄇㄢˋ']]},
+{word:'兒 童',answer:['ㄦˊ','ㄊㄨㄥˊ'],options:[['ㄦˊ','ㄊㄨㄥˊ'],['ㄦˊ','ㄊㄥˊ']]},
+{word:'通 過',answer:['ㄊㄨㄥ','ㄍㄨㄛˋ'],options:[['ㄊㄨㄥ','ㄍㄨㄛˋ'],['ㄊㄥ','ㄍㄨㄛˋ']]},
+{word:'能 力',answer:['ㄋㄥˊ','ㄌㄧˋ'],options:[['ㄋㄥˊ','ㄌㄧˋ'],['ㄋㄨㄥˊ','ㄌㄧˋ']]},
+{word:'可 能',answer:['ㄎㄜˇ','ㄋㄥˊ'],options:[['ㄎㄜˇ','ㄋㄥˊ'],['ㄎㄜˇ','ㄋㄨㄥˊ']]},
+{word:'農 夫',answer:['ㄋㄨㄥˊ','ㄈㄨ'],options:[['ㄋㄨㄥˊ','ㄈㄨ'],['ㄋㄥˊ','ㄈㄨ']]},
+{word:'巷 弄',answer:['ㄒㄧㄤˋ','ㄋㄥˋ'],options:[['ㄒㄧㄤˋ','ㄋㄥˋ'],['ㄒㄧㄤˋ','ㄋㄨㄥˋ']]},
+{word:'冷 氣',answer:['ㄌㄥˇ','ㄑㄧˋ'],options:[['ㄌㄥˇ','ㄑㄧˋ'],['ㄌㄨㄥˇ','ㄑㄧˋ']]},
+{word:'稜 角',answer:['ㄌㄥˊ','ㄐㄧㄠˇ'],options:[['ㄌㄥˊ','ㄐㄧㄠˇ'],['ㄌㄨㄥˊ','ㄐㄧㄠˇ']]},
+{word:'龍 舟',answer:['ㄌㄨㄥˊ','ㄓㄡ'],options:[['ㄌㄨㄥˊ','ㄓㄡ'],['ㄌㄥˊ','ㄓㄡ']]},
+{word:'基 隆',answer:['ㄐㄧ','ㄌㄨㄥˊ'],options:[['ㄐㄧ','ㄌㄨㄥˊ'],['ㄐㄧ','ㄌㄥˊ']]},
+
+{word:'田 埂',answer:['ㄊㄧㄢˊ','ㄍㄥˇ'],options:[['ㄊㄧㄢˊ','ㄍㄥˇ'],['ㄊㄧㄢˊ','ㄍㄨㄥˇ']]},
+{word:'更 好',answer:['ㄍㄥˋ','ㄏㄠˇ'],options:[['ㄍㄥˋ','ㄏㄠˇ'],['ㄍㄨㄥˋ','ㄏㄠˇ']]},
+{word:'工 作',answer:['ㄍㄨㄥ','ㄗㄨㄛˋ'],options:[['ㄍㄨㄥ','ㄗㄨㄛˋ'],['ㄍㄥ','ㄗㄨㄛˋ']]},
+
+{word:'水 坑',answer:['ㄕㄨㄟˇ','ㄎㄥ'],options:[['ㄕㄨㄟˇ','ㄎㄥ'],['ㄕㄨㄟˇ','ㄎㄨㄥ']]},
+{word:'吭 聲',answer:['ㄎㄥ','ㄕㄥ'],options:[['ㄎㄥ','ㄕㄥ'],['ㄎㄨㄥ','ㄕㄥ']]},
+{word:'空 氣',answer:['ㄎㄨㄥ','ㄑㄧˋ'],options:[['ㄎㄨㄥ','ㄑㄧˋ'],['ㄎㄥ','ㄑㄧˋ']]},
+{word:'控 制',answer:['ㄎㄨㄥˋ','ㄓˋ'],options:[['ㄎㄨㄥˋ','ㄓˋ'],['ㄎㄥˋ','ㄓˋ']]},
+{word:'橫 線',answer:['ㄏㄥˊ','ㄒㄧㄢˋ'],options:[['ㄏㄥˊ','ㄒㄧㄢˋ'],['ㄏㄨㄥˊ','ㄒㄧㄢˋ']]},
+{word:'平 衡',answer:['ㄆㄧㄥˊ','ㄏㄥˊ'],options:[['ㄆㄧㄥˊ','ㄏㄥˊ'],['ㄆㄧㄥˊ','ㄏㄨㄥˊ']]},
+{word:'紅 色',answer:['ㄏㄨㄥˊ','ㄙㄜˋ'],options:[['ㄏㄨㄥˊ','ㄙㄜˋ'],['ㄏㄥˊ','ㄙㄜˋ']]},
+{word:'烘 烤',answer:['ㄏㄨㄥ','ㄎㄠˇ'],options:[['ㄏㄨㄥ','ㄎㄠˇ'],['ㄏㄥ','ㄎㄠˇ']]},
+
+{word:'正 好',answer:['ㄓㄥˋ','ㄏㄠˇ'],options:[['ㄓㄥˋ','ㄏㄠˇ'],['ㄓㄨㄥˋ','ㄏㄠˇ']]},
+{word:'整 齊',answer:['ㄓㄥˇ','ㄑㄧˊ'],options:[['ㄓㄥˇ','ㄑㄧˊ'],['ㄓㄨㄥˇ','ㄑㄧˊ']]},
+{word:'中 間',answer:['ㄓㄨㄥ','ㄐㄧㄢ'],options:[['ㄓㄨㄥ','ㄐㄧㄢ'],['ㄓㄥ','ㄐㄧㄢ']]},
+{word:'重 要',answer:['ㄓㄨㄥˋ','ㄧㄠˋ'],options:[['ㄓㄨㄥˋ','ㄧㄠˋ'],['ㄓㄥˋ','ㄧㄠˋ']]},
+{word:'城 市',answer:['ㄔㄥˊ','ㄕˋ'],options:[['ㄔㄥˊ','ㄕˋ'],['ㄔㄨㄥˊ','ㄕˋ']]},
+{word:'成 為',answer:['ㄔㄥˊ','ㄨㄟˊ'],options:[['ㄔㄥˊ','ㄨㄟˊ'],['ㄔㄨㄥˊ','ㄨㄟˊ']]},
+{word:'充 滿',answer:['ㄔㄨㄥ','ㄇㄢˇ'],options:[['ㄔㄨㄥ','ㄇㄢˇ'],['ㄔㄥ','ㄇㄢˇ']]},
+
+{word:'剩 下',answer:['ㄕㄥˋ','ㄒㄧㄚˋ'],options:[['ㄕㄥˋ','ㄒㄧㄚˋ'],['ㄕㄨㄥˋ','ㄒㄧㄚˋ']]},
+{word:'繩 子',answer:['ㄕㄥˊ','˙ㄗ'],options:[['ㄕㄥˊ','˙ㄗ'],['ㄕㄨㄥˊ','˙ㄗ']]},
+{word:'亂 扔',answer:['ㄌㄨㄢˋ','ㄖㄥ'],options:[['ㄌㄨㄢˋ','ㄖㄥ'],['ㄌㄨㄢˋ','ㄖㄨㄥ']]},
+{word:'仍 然',answer:['ㄖㄥˊ','ㄖㄢˊ'],options:[['ㄖㄥˊ','ㄖㄢˊ'],['ㄖㄨㄥˊ','ㄖㄢˊ']]},
+{word:'容 易',answer:['ㄖㄨㄥˊ','ㄧˋ'],options:[['ㄖㄨㄥˊ','ㄧˋ'],['ㄖㄥˊ','ㄧˋ']]},
+{word:'溶 化',answer:['ㄖㄨㄥˊ','ㄏㄨㄚˋ'],options:[['ㄖㄨㄥˊ','ㄏㄨㄚˋ'],['ㄖㄥˊ','ㄏㄨㄚˋ']]},
+
+{word:'增 加',answer:['ㄗㄥ','ㄐㄧㄚ'],options:[['ㄗㄥ','ㄐㄧㄚ'],['ㄗㄨㄥ','ㄐㄧㄚ']]},
+{word:'贈 品',answer:['ㄗㄥˋ','ㄆㄧㄣˇ'],options:[['ㄗㄥˋ','ㄆㄧㄣˇ'],['ㄗㄨㄥˋ','ㄆㄧㄣˇ']]},
+{word:'粽 子',answer:['ㄗㄨㄥˋ','˙ㄗ'],options:[['ㄗㄨㄥˋ','˙ㄗ'],['ㄗㄥˋ','˙ㄗ']]},
+{word:'總 統',answer:['ㄗㄨㄥˇ','ㄊㄨㄥˇ'],options:[['ㄗㄨㄥˇ','ㄊㄨㄥˇ'],['ㄗㄥˇ','ㄊㄨㄥˇ']]},
+{word:'曾 經',answer:['ㄘㄥˊ','ㄐㄧㄥ'],options:[['ㄘㄥˊ','ㄐㄧㄥ'],['ㄘㄨㄥˊ','ㄐㄧㄥ']]},
+
+{word:'洋 蔥',answer:['ㄧㄤˊ','ㄘㄨㄥ'],options:[['ㄧㄤˊ','ㄘㄨㄥ'],['ㄧㄤˊ','ㄘㄥ']]},
+{word:'聰 明',answer:['ㄘㄨㄥ','ㄇㄧㄥˊ'],options:[['ㄘㄨㄥ','ㄇㄧㄥˊ'],['ㄘㄥ','ㄇㄧㄥˊ']]},
+{word:'僧 人',answer:['ㄙㄥ','ㄖㄣˊ'],options:[['ㄙㄥ','ㄖㄣˊ'],['ㄙㄨㄥ','ㄖㄣˊ']]},
+{word:'唐 僧',answer:['ㄊㄤˊ','ㄙㄥ'],options:[['ㄊㄤˊ','ㄙㄥ'],['ㄊㄤˊ','ㄙㄨㄥ']]},
+{word:'肉 鬆',answer:['ㄖㄡˋ','ㄙㄨㄥ'],options:[['ㄖㄡˋ','ㄙㄨㄥ'],['ㄖㄡˋ','ㄙㄥ']]},
+{word:'送 禮',answer:['ㄙㄨㄥˋ','ㄌㄧˇ'],options:[['ㄙㄨㄥˋ','ㄌㄧˇ'],['ㄙㄥˋ','ㄌㄧˇ']]},
+
+    ]},
+  'en_eng':{title:'ㄣ / ㄥ',
+    tutorial:{title:'闖關秘訣：ㄣ / ㄥ',rule:`<p>⭐這題很難，小一不會很正常！<br>⭐「ㄣ」：舌尖抵住上顎，唸 ㄉㄊ 找位置<br>⭐「ㄥ」</strong>：嘴型微開，唸 ㄍㄎ 找位置<br>⭐跟著國字記：心 = ㄒㄧㄣ，星 = ㄒㄧㄥ</p>` ,
+      examples:[{word:'門',display:'ㄇㄣˊ'},{word:'根',display:'ㄍㄣ'},{word:'音',display:'ㄧㄣ'},{word:'心',display:'ㄒㄧㄣ'},{word:'風',display:'ㄈㄥ'},{word:'箏',display:'ㄓㄥ'},{word:'星',display:'ㄒㄧㄥ'},{word:'青',display:'ㄑㄧㄥ'},]},
+    questions:[
+    // ㄣ ↔ ㄥ（含 ㄧㄣ／ㄧㄥ）題庫片段
+
+  // —— 來自「ㄣ」組 —— 
+  {word:'花 盆',answer:['ㄏㄨㄚ','ㄆㄣˊ'],options:[['ㄏㄨㄚ','ㄆㄣˊ'],['ㄏㄨㄚ','ㄆㄥˊ']]},
+  {word:'開 門',answer:['ㄎㄞ','ㄇㄣˊ'],options:[['ㄎㄞ','ㄇㄣˊ'],['ㄎㄞ','ㄇㄥˊ']]},
+  {word:'粉 筆',answer:['ㄈㄣˇ','ㄅㄧˇ'],options:[['ㄈㄣˇ','ㄅㄧˇ'],['ㄈㄥˇ','ㄅㄧˇ']]},
+  {word:'樹 根',answer:['ㄕㄨˋ','ㄍㄣ'],options:[['ㄕㄨˋ','ㄍㄣ'],['ㄕㄨˋ','ㄍㄥ']]},
+  {word:'打 針',answer:['ㄉㄚˇ','ㄓㄣ'],options:[['ㄉㄚˇ','ㄓㄣ'],['ㄉㄚˇ','ㄓㄥ']]},
+  {word:'伸 手',answer:['ㄕㄣ','ㄕㄡˇ'],options:[['ㄕㄣ','ㄕㄡˇ'],['ㄕㄥ','ㄕㄡˇ']]},
+
+  // —— 來自「ㄥ」組 —— 
+  {word:'朋 友',answer:['ㄆㄥˊ','ㄧㄡˇ'],options:[['ㄆㄥˊ','ㄧㄡˇ'],['ㄆㄣˊ','ㄧㄡˇ']]},
+  {word:'風 箏',answer:['ㄈㄥ','ㄓㄥ'],options:[['ㄈㄥ','ㄓㄥ'],['ㄈㄣ','ㄓㄥ']]},
+  {word:'登 場',answer:['ㄉㄥ','ㄔㄤˇ'],options:[['ㄉㄥ','ㄔㄤˇ'],['ㄉㄣ','ㄔㄤˇ']]},
+  {word:'耕 田',answer:['ㄍㄥ','ㄊㄧㄢˊ'],options:[['ㄍㄥ','ㄊㄧㄢˊ'],['ㄍㄣ','ㄊㄧㄢˊ']]},
+  {word:'變 成',answer:['ㄅㄧㄢˋ','ㄔㄥˊ'],options:[['ㄅㄧㄢˋ','ㄔㄥˊ'],['ㄅㄧㄢˋ','ㄔㄣˊ']]},
+  {word:'生 日',answer:['ㄕㄥ','ㄖˋ'],options:[['ㄕㄥ','ㄖˋ'],['ㄕㄣ','ㄖˋ']]},
+  {word:'升 旗',answer:['ㄕㄥ','ㄑㄧˊ'],options:[['ㄕㄥ','ㄑㄧˊ'],['ㄕㄣ','ㄑㄧˊ']]},
+
+  // —— 來自「ㄧㄣ」組 —— 
+  {word:'聲 音',answer:['ㄕㄥ','ㄧㄣ'],options:[['ㄕㄥ','ㄧㄣ'],['ㄕㄥ','ㄧㄥ']]},
+  {word:'音 樂',answer:['ㄧㄣ','ㄩㄝˋ'],options:[['ㄧㄣ','ㄩㄝˋ'],['ㄧㄥ','ㄩㄝˋ']]},
+  {word:'銀 行',answer:['ㄧㄣˊ','ㄏㄤˊ'],options:[['ㄧㄣˊ','ㄏㄤˊ'],['ㄧㄥˊ','ㄏㄤˊ']]},
+  {word:'飲 料',answer:['ㄧㄣˇ','ㄌㄧㄠˋ'],options:[['ㄧㄣˇ','ㄌㄧㄠˋ'],['ㄧㄥˇ','ㄌㄧㄠˋ']]},
+  {word:'印 章',answer:['ㄧㄣˋ','ㄓㄤ'],options:[['ㄧㄣˋ','ㄓㄤ'],['ㄧㄥˋ','ㄓㄤ']]},
+  {word:'音 符',answer:['ㄧㄣ','ㄈㄨˊ'],options:[['ㄧㄣ','ㄈㄨˊ'],['ㄧㄥ','ㄈㄨˊ']]},
+  {word:'今 年',answer:['ㄐㄧㄣ','ㄋㄧㄢˊ'],options:[['ㄐㄧㄣ','ㄋㄧㄢˊ'],['ㄐㄧㄥ','ㄋㄧㄢˊ']]},
+  {word:'緊 張',answer:['ㄐㄧㄣˇ','ㄓㄤ'],options:[['ㄐㄧㄣˇ','ㄓㄤ'],['ㄐㄧㄥˇ','ㄓㄤ']]},
+  {word:'鋼 琴',answer:['ㄍㄤ','ㄑㄧㄣˊ'],options:[['ㄍㄤ','ㄑㄧㄣˊ'],['ㄍㄤ','ㄑㄧㄥˊ']]},
+  {word:'新 年',answer:['ㄒㄧㄣ','ㄋㄧㄢˊ'],options:[['ㄒㄧㄣ','ㄋㄧㄢˊ'],['ㄒㄧㄥ','ㄋㄧㄢˊ']]},
+  {word:'新 娘',answer:['ㄒㄧㄣ','ㄋㄧㄤˊ'],options:[['ㄒㄧㄣ','ㄋㄧㄤˊ'],['ㄒㄧㄥ','ㄋㄧㄤˊ']]},
+
+  // —— 來自「ㄧㄥ」組 —— 
+  {word:'冰 箱',answer:['ㄅㄧㄥ','ㄒㄧㄤ'],options:[['ㄅㄧㄥ','ㄒㄧㄤ'],['ㄅㄧㄣ','ㄒㄧㄤ']]},
+  {word:'姓 名',answer:['ㄒㄧㄥˋ','ㄇㄧㄥˊ'],options:[['ㄒㄧㄥˋ','ㄇㄧㄥˊ'],['ㄒㄧㄣˋ','ㄇㄧㄥˊ']]},
+  {word:'庭 院',answer:['ㄊㄧㄥˊ','ㄩㄢˋ'],options:[['ㄊㄧㄥˊ','ㄩㄢˋ'],['ㄊㄧㄣˊ','ㄩㄢˋ']]},
+  {word:'檸 檬',answer:['ㄋㄧㄥˊ','ㄇㄥˊ'],options:[['ㄋㄧㄥˊ','ㄇㄥˊ'],['ㄋㄧㄣˊ','ㄇㄥˊ']]},
+  {word:'青 蛙',answer:['ㄑㄧㄥ','ㄨㄚ'],options:[['ㄑㄧㄥ','ㄨㄚ'],['ㄑㄧㄣ','ㄨㄚ']]},
+  {word:'眼 睛',answer:['ㄧㄢˇ','ㄐㄧㄥ'],options:[['ㄧㄢˇ','ㄐㄧㄥ'],['ㄧㄢˇ','ㄐㄧㄣ']]},
+  {word:'請 問',answer:['ㄑㄧㄥˇ','ㄨㄣˋ'],options:[['ㄑㄧㄥˇ','ㄨㄣˋ'],['ㄑㄧㄣˇ','ㄨㄣˋ']]},
+  {word:'鯨 魚',answer:['ㄐㄧㄥ','ㄩˊ'],options:[['ㄐㄧㄥ','ㄩˊ'],['ㄐㄧㄣ','ㄩˊ']]},
+  {word:'警 察',answer:['ㄐㄧㄥˇ','ㄔㄚˊ'],options:[['ㄐㄧㄥˇ','ㄔㄚˊ'],['ㄐㄧㄣˇ','ㄔㄚˊ']]},
+  {word:'星 星',answer:['ㄒㄧㄥ','ㄒㄧㄥ'],options:[['ㄒㄧㄥ','ㄒㄧㄥ'],['ㄒㄧㄣ','ㄒㄧㄥ']]}
+
+
+    ]},
+  'finals':{title:'結合韻',
+    tutorial:{title:'闖關秘訣：結合韻',rule:`<p>⭐會變音的要記發音：ㄧㄢ、ㄧㄣ、ㄧㄥ、ㄨㄥ、ㄩㄢ、ㄩㄣ、ㄩㄥ<br>⭐不存在的拼法 (1)：沒有ㄧㄟ，只有ㄧㄝ<br>⭐不存在的拼法 (2)：只有「唷」拼成ㄧㄛ，否則拼成 ㄧㄡ</p>` ,
+      examples:[{word:'鹽',display:'ㄧㄢˊ'},{word:'琴',display:'ㄑㄧㄣˊ'},{word:'中',display:'ㄓㄨㄥ'},{word:'圓',display:'ㄩㄢˊ'},{word:'雲',display:'ㄩㄣˊ'},{word:'泳',display:'ㄩㄥˇ'},{word:'寫',display:'ㄒㄧㄝˇ'},{word:'球',display:'ㄑㄧㄡˊ'},]},
+    questions:[
+     // 結合韻題庫（兩字詞）
+
+  // —— ㄧㄢ（對照 ㄧㄣ）——
+  {word:'鹽 巴',answer:['ㄧㄢˊ','ㄅㄚ'],options:[['ㄧㄢˊ','ㄅㄚ'],['ㄧㄣˊ','ㄅㄚ']]},
+  {word:'眼 睛',answer:['ㄧㄢˇ','ㄐㄧㄥ'],options:[['ㄧㄢˇ','ㄐㄧㄥ'],['ㄧㄣˇ','ㄐㄧㄥ']]},
+  {word:'綿 羊',answer:['ㄇㄧㄢˊ','ㄧㄤˊ'],options:[['ㄇㄧㄢˊ','ㄧㄤˊ'],['ㄇㄧㄣˊ','ㄧㄤˊ']]},
+  {word:'天 空',answer:['ㄊㄧㄢ','ㄎㄨㄥ'],options:[['ㄊㄧㄢ','ㄎㄨㄥ'],['ㄊㄧㄣ','ㄎㄨㄥ']]},
+  {word:'電 燈',answer:['ㄉㄧㄢˋ','ㄉㄥ'],options:[['ㄉㄧㄢˋ','ㄉㄥ'],['ㄉㄧㄣˋ','ㄉㄥ']]},
+  {word:'剪 刀',answer:['ㄐㄧㄢˇ','ㄉㄠ'],options:[['ㄐㄧㄢˇ','ㄉㄠ'],['ㄐㄧㄣˇ','ㄉㄠ']]},
+
+  // —— ㄩㄢ（對照 ㄩㄣ）——
+  {word:'圓 形',answer:['ㄩㄢˊ','ㄒㄧㄥˊ'],options:[['ㄩㄢˊ','ㄒㄧㄥˊ'],['ㄩㄣˊ','ㄒㄧㄥˊ']]},
+  {word:'庭 院',answer:['ㄊㄧㄥˊ','ㄩㄢˋ'],options:[['ㄊㄧㄥˊ','ㄩㄢˋ'],['ㄊㄧㄥˊ','ㄩㄣˋ']]},
+  {word:'自 願',answer:['ㄗˋ','ㄩㄢˋ'],options:[['ㄗˋ','ㄩㄢˋ'],['ㄗˋ','ㄩㄣˋ']]},
+  {word:'蛋 捲',answer:['ㄉㄢˋ','ㄐㄩㄢˇ'],options:[['ㄉㄢˋ','ㄐㄩㄢˇ'],['ㄉㄢˋ','ㄐㄩㄣˇ']]},
+  {word:'圓 圈',answer:['ㄩㄢˊ','ㄑㄩㄢ'],options:[['ㄩㄢˊ','ㄑㄩㄢ'],['ㄩㄣˊ','ㄑㄩㄢ']]},
+  {word:'噴 泉',answer:['ㄆㄣ','ㄑㄩㄢˊ'],options:[['ㄆㄣ','ㄑㄩㄢˊ'],['ㄆㄣ','ㄑㄩㄣˊ']]},
+  {word:'旋 轉',answer:['ㄒㄩㄢˊ','ㄓㄨㄢˇ'],options:[['ㄒㄩㄢˊ','ㄓㄨㄢˇ'],['ㄒㄩㄣˊ','ㄓㄨㄢˇ']]},
+  {word:'選 擇',answer:['ㄒㄩㄢˇ','ㄗㄜˋ'],options:[['ㄒㄩㄢˇ','ㄗㄜˋ'],['ㄒㄩㄣˇ','ㄗㄜˋ']]},
+
+  // —— ㄩㄣ（對照 ㄩㄢ）——
+  {word:'雲 朵',answer:['ㄩㄣˊ','ㄉㄨㄛˇ'],options:[['ㄩㄣˊ','ㄉㄨㄛˇ'],['ㄩㄢˊ','ㄉㄨㄛˇ']]},
+  {word:'隕 石',answer:['ㄩㄣˇ','ㄕˊ'],options:[['ㄩㄣˇ','ㄕˊ'],['ㄩㄢˇ','ㄕˊ']]},
+  {word:'暈 車',answer:['ㄩㄣ','ㄔㄜ'],options:[['ㄩㄣ','ㄔㄜ'],['ㄩㄢ','ㄔㄜ']]},
+  {word:'平 均',answer:['ㄆㄧㄥˊ','ㄐㄩㄣ'],options:[['ㄆㄧㄥˊ','ㄐㄩㄣ'],['ㄆㄧㄥˊ','ㄐㄩㄢ']]},
+  {word:'軍 艦',answer:['ㄐㄩㄣ','ㄐㄧㄢˋ'],options:[['ㄐㄩㄣ','ㄐㄧㄢˋ'],['ㄐㄩㄢ','ㄐㄧㄢˋ']]},
+  {word:'裙 子',answer:['ㄑㄩㄣˊ','˙ㄗ'],options:[['ㄑㄩㄣˊ','˙ㄗ'],['ㄑㄩㄢˊ','˙ㄗ']]},
+  {word:'尋 找',answer:['ㄒㄩㄣˊ','ㄓㄠˇ'],options:[['ㄒㄩㄣˊ','ㄓㄠˇ'],['ㄒㄩㄢˊ','ㄓㄠˇ']]},
+  {word:'訓 練',answer:['ㄒㄩㄣˋ','ㄌㄧㄢˋ'],options:[['ㄒㄩㄣˋ','ㄌㄧㄢˋ'],['ㄒㄩㄢˋ','ㄌㄧㄢˋ']]},
+
+  // —— ㄩㄥ（對照 ㄧㄥ）——
+  {word:'勇 敢',answer:['ㄩㄥˇ','ㄍㄢˇ'],options:[['ㄩㄥˇ','ㄍㄢˇ'],['ㄧㄥˇ','ㄍㄢˇ']]},
+  {word:'功 用',answer:['ㄍㄨㄥ','ㄩㄥˋ'],options:[['ㄍㄨㄥ','ㄩㄥˋ'],['ㄍㄨㄥ','ㄧㄥˋ']]},
+  {word:'擁 抱',answer:['ㄩㄥ','ㄅㄠˋ'],options:[['ㄩㄥ','ㄅㄠˋ'],['ㄧㄥ','ㄅㄠˋ']]},
+  {word:'游 泳',answer:['ㄧㄡˊ','ㄩㄥˇ'],options:[['ㄧㄡˊ','ㄩㄥˇ'],['ㄧㄡˊ','ㄧㄥˇ']]},
+  {word:'永 遠',answer:['ㄩㄥˇ','ㄩㄢˇ'],options:[['ㄩㄥˇ','ㄩㄢˇ'],['ㄧㄥˇ','ㄩㄢˇ']]},
+  {word:'貧 窮',answer:['ㄆㄧㄣˊ','ㄑㄩㄥˊ'],options:[['ㄆㄧㄣˊ','ㄑㄩㄥˊ'],['ㄆㄧㄣˊ','ㄑㄧㄥˊ']]},
+  {word:'兇 猛',answer:['ㄒㄩㄥ','ㄇㄥˇ'],options:[['ㄒㄩㄥ','ㄇㄥˇ'],['ㄒㄧㄥ','ㄇㄥˇ']]},
+  {word:'棕 熊',answer:['ㄗㄨㄥ','ㄒㄩㄥˊ'],options:[['ㄗㄨㄥ','ㄒㄩㄥˊ'],['ㄗㄨㄥ','ㄒㄧㄥˊ']]},
+
+  // —— ㄧㄝ（不可誤作 ㄧㄟ）——
+  {word:'別 針',answer:['ㄅㄧㄝˊ','ㄓㄣ'],options:[['ㄅㄧㄝˊ','ㄓㄣ'],['ㄅㄧㄟˊ','ㄓㄣ']]},
+  {word:'蝴 蝶',answer:['ㄏㄨˊ','ㄉㄧㄝˊ'],options:[['ㄏㄨˊ','ㄉㄧㄝˊ'],['ㄏㄨˊ','ㄉㄧㄟˊ']]},
+  {word:'貼 紙',answer:['ㄊㄧㄝ','ㄓˇ'],options:[['ㄊㄧㄝ','ㄓˇ'],['ㄊㄧㄟ','ㄓˇ']]},
+  {word:'切 斷',answer:['ㄑㄧㄝ','ㄉㄨㄢˋ'],options:[['ㄑㄧㄝ','ㄉㄨㄢˋ'],['ㄑㄧㄟ','ㄉㄨㄢˋ']]},
+  {word:'寫 字',answer:['ㄒㄧㄝˇ','ㄗˋ'],options:[['ㄒㄧㄝˇ','ㄗˋ'],['ㄒㄧㄟˇ','ㄗˋ']]},
+
+  // —— ㄧㄡ（常與 ㄧㄛ 混）——
+  {word:'加 油',answer:['ㄐㄧㄚ','ㄧㄡˊ'],options:[['ㄐㄧㄚ','ㄧㄡˊ'],['ㄐㄧㄚ','ㄧㄛˊ']]},
+  {word:'牛 奶',answer:['ㄋㄧㄡˊ','ㄋㄞˇ'],options:[['ㄋㄧㄡˊ','ㄋㄞˇ'],['ㄋㄧㄛˊ','ㄋㄞˇ']]},
+  {word:'酒 精',answer:['ㄐㄧㄡˇ','ㄐㄧㄥ'],options:[['ㄐㄧㄡˇ','ㄐㄧㄥ'],['ㄐㄧㄛˇ','ㄐㄧㄥ']]},
+  {word:'棒 球',answer:['ㄅㄤˋ','ㄑㄧㄡˊ'],options:[['ㄅㄤˋ','ㄑㄧㄡˊ'],['ㄅㄤˋ','ㄑㄧㄛˊ']]},
+  {word:'休 息',answer:['ㄒㄧㄡ','ㄒㄧˊ'],options:[['ㄒㄧㄡ','ㄒㄧˊ'],['ㄒㄧㄛ','ㄒㄧˊ']]},
+  {word:'丟 掉',answer:['ㄉㄧㄡ','ㄉㄧㄠˋ'],options:[['ㄉㄧㄡ','ㄉㄧㄠˋ'],['ㄉㄧㄛ','ㄉㄧㄠˋ']]}
+
+    ]}
+};
+
+
+/* ===== 常量 ===== */
+const QUESTIONS_PER_ROUND = 10;
+
+/* ===== 狀態/元素 ===== */
+let currentSection,currentQuestionIndex,score,questions,userAnswers;
+const mainMenu=document.getElementById('main-menu');
+const tutorialScreen=document.getElementById('tutorial-screen');
+const gameScreen=document.getElementById('game-screen');
+const resultsScreen=document.getElementById('results-screen');
+const tutorialTitle=document.getElementById('tutorial-title');
+const tutorialRule=document.getElementById('tutorial-rule');
+const tutorialExamples=document.getElementById('tutorial-examples');
+const startPracticeBtn=document.getElementById('start-practice-btn');
+const gameTitle=document.getElementById('game-title');
+const scoreDisplay=document.getElementById('score');
+const hanzi1=document.getElementById('hanzi-1');
+const hanzi2=document.getElementById('hanzi-2');
+const rightRow1=document.getElementById('right-row-1');
+const rightRow2=document.getElementById('right-row-2');
+const feedback=document.getElementById('feedback');
+const nextBtn=document.getElementById('next-btn');
+const finishBtn=document.getElementById('finish-btn');
+const listenBtn=document.getElementById('listen-btn');
+
+let audioCtx; let zhTWVoice=null;
+
+/* ===== 聲音 / 語音 ===== */
+function initAudio(){ if(audioCtx) return; try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){console.error("Web Audio not supported");} }
+
+// 語音優先：Microsoft Yating → Microsoft Zhiwei → Google zh-TW → 其他備援
+function pickPreferredVoice(voices){
+  const norm = s => (s||'').toLowerCase().replace(/[\s_\-()（）:：,，.。]+/g,'');
+  const isTW = v => /^zh/i.test(v.lang||'') && /tw/i.test(v.lang||'');
+  const isCN = v => /^zh/i.test(v.lang||'') && /cn/i.test(v.lang||'');
+  const isZH = v => /^zh/i.test(v.lang||'');
+  const isG  = v => /google/i.test(v.name||'');
+  const isMS = v => /microsoft/i.test(v.name||'');
+  const N = voices.map(v => ({ v, name:norm(v.name), uri:norm(v.voiceURI) }));
+  let p = N.find(x => isTW(x.v) && isMS(x.v) && (x.name.includes('yating') || x.uri.includes('yating'))); if (p) return p.v;
+  p = N.find(x => isTW(x.v) && isMS(x.v) && (x.name.includes('zhiwei') || x.uri.includes('zhiwei'))); if (p) return p.v;
+  p = voices.find(v => isTW(v) && isG(v) && /(國語|台灣|臺灣|mandarin|taiwan)/i.test(v.name||'')); if (p) return p;
+  return (voices.find(v => !isG(v) && isTW(v)) || voices.find(v =>  isG(v) && isTW(v)) || voices.find(v =>  isG(v) && isCN(v)) || voices.find(v => !isG(v) && isCN(v)) || voices.find(isTW) || voices.find(isCN) || voices.find(isZH) || voices[0] || null);
+}
+function setupSpeechSynthesis(){
+  if(!('speechSynthesis' in window)) return;
+  const apply = () => { const voices=speechSynthesis.getVoices()||[]; zhTWVoice=pickPreferredVoice(voices); };
+  apply(); if (typeof speechSynthesis.onvoiceschanged!=="undefined"){ speechSynthesis.onvoiceschanged=apply; }
+}
+window.onload=()=>{initAudio();setupSpeechSynthesis();};
+
+/* ===== 小工具 ===== */
+function playSound(type){
+  if(!audioCtx) return;
+  const now=audioCtx.currentTime; const g=audioCtx.createGain(); g.gain.setValueAtTime(0.15,now); g.connect(audioCtx.destination);
+  const seq=(type==='correct')?[523.25,659.25,783.99]:[349.23,293.66]; const step=(type==='correct')?0.1:0.15;
+  seq.forEach((f,i)=>{const o=audioCtx.createOscillator();o.type='sine';o.frequency.setValueAtTime(f,now+i*step);o.connect(g);o.start(now+i*step);o.stop(now+(i+1)*step);});
+}
+function shuffleArray(arr){
+  const a=[...arr]; const rand=(n)=>{ if(window.crypto&&crypto.getRandomValues){const u32=new Uint32Array(1);crypto.getRandomValues(u32);return (u32[0]/2**32)*n;} return Math.random()*n; };
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(rand(i+1));[a[i],a[j]]=[a[j],a[i]];} return a;
+}
+
+/* ===== 自動子題分群（不動你的題庫） ===== */
+function autoTag(section, q){
+  const ans = (q?.answer || []).join(' ');
+  const has = pat => pat.test(ans);
+
+  if(section==='o_uo'){            // ㄛ / ㄨㄛ / ㄡ
+    if (has(/ㄨㄛ/)) return 'ㄨㄛ';
+    if (has(/ㄡ/))   return 'ㄡ';
+    return 'ㄛ';
+  }
+  if(section==='eng_ong'){         // ㄥ / ㄨㄥ
+    if (has(/ㄨㄥ/)) return 'ㄨㄥ';
+    return 'ㄥ';
+  }
+  if(section==='en_eng'){          // ㄣ系（含 ㄧㄣ） / ㄥ系（含 ㄨㄥ、ㄧㄥ）
+    if (has(/(ㄨㄥ|ㄧㄥ)/)) return 'ㄥ系';
+    return 'ㄣ系';
+  }
+  if(section==='finals'){          // 常見結合韻子題
+    const finalsList = ['ㄧㄢ','ㄩㄢ','ㄩㄣ','ㄩㄥ','ㄧㄝ','ㄧㄡ'];
+    for(const f of finalsList){ if (has(new RegExp(f))) return f; }
+    return '其他結合韻';
+  }
+  return '全部';
+}
+
+/* ===== 題袋（主題 + 子題）不重複 ===== */
+function bagKey(section, subtag){ return `question_bag_${section}__${subtag||'全部'}`; }
+function lsGet(key, fallback){ try{const v=localStorage.getItem(key); return v?JSON.parse(v):fallback;}catch(e){return fallback;} }
+function lsSet(key, val){ try{localStorage.setItem(key, JSON.stringify(val));}catch(e){} }
+function buildShuffledIndexBag(total){ const idx=Array.from({length:total},(_,i)=>i); return shuffleArray(idx); }
+function loadBag(section, total, subtag){
+  const k=bagKey(section, subtag); let bag=lsGet(k, null);
+  if(!bag || !Array.isArray(bag) || bag.some(n=>typeof n!=='number')){ bag=buildShuffledIndexBag(total); lsSet(k, bag); }
+  return bag;
+}
+function saveBag(section, bag, subtag){ lsSet(bagKey(section, subtag), bag); }
+function takeNFromBag(section, total, n, subtag){
+  let bag=loadBag(section,total,subtag); const picked=[];
+  while(picked.length<Math.min(n,total)){ if(bag.length===0) bag=buildShuffledIndexBag(total); picked.push(bag.shift()); }
+  saveBag(section,bag,subtag); return picked;
+}
+
+/* ===== 交錯排列：把不同子題／組別交錯，避免扎堆 ===== */
+function interleaveByKey(arr, keyFn){
+  const groups=new Map(); arr.forEach(x=>{ const k=keyFn(x); (groups.get(k)||groups.set(k,[]).get(k)).push(x); });
+  const keys=[...groups.keys()]; const out=[];
+  while(keys.some(k=>groups.get(k).length)){ for(const k of keys){ if(groups.get(k).length) out.push(groups.get(k).shift()); } }
+  return out;
+}
+
+/* ===== 尺寸同步 ===== */
+function syncDims(){
+  const grid=document.querySelector('.qa-grid'); if(!grid) return;
+  const cs=getComputedStyle(grid); const gapX=parseFloat(cs.columnGap||cs.gap||'0')||0;
+  const gridW=grid.clientWidth; const gridH=grid.clientHeight;
+  const colW=(gridW-gapX)/2; const rowH=(gridH-(parseFloat(cs.rowGap||cs.gap||'0')||0))/2;
+  const unit=Math.min(colW,rowH); const gs=document.getElementById('game-screen').style;
+  gs.setProperty('--rowH',`${rowH}px`); gs.setProperty('--unit',`${unit}px`);
+}
+let _rsT=null; function queueSync(){ clearTimeout(_rsT); _rsT=setTimeout(syncDims,40); }
+window.addEventListener('resize', queueSync); window.addEventListener('orientationchange', ()=>setTimeout(syncDims,100));
+
+/* ===== 教學頁（無下拉） ===== */
+function showTutorial(section){
+  currentSection=section;
+  const t=gameData[section].tutorial;
+  mainMenu.classList.add('hidden');tutorialScreen.classList.remove('hidden');
+  tutorialTitle.textContent=t.title;tutorialRule.innerHTML=t.rule;
+  tutorialExamples.innerHTML='';
+  t.examples.forEach(ex=>{
+    const card=document.createElement('div');
+    card.className='bg-amber-50 border-2 border-amber-100 rounded-lg p-2 flex items-center justify-center text-center gap-3 cursor-pointer';
+    card.onclick=()=>speak(ex.word);
+    const char=document.createElement('span');char.className='text-3xl font-bold text-amber-700';char.textContent=ex.word;
+    const zc=document.createElement('div');zc.innerHTML=createZhuyinHTML(ex.display);
+    zc.querySelector('.zhuyin-part').style.fontSize='1.05rem';
+    card.appendChild(char);card.appendChild(zc);tutorialExamples.appendChild(card);
+  });
+  startPracticeBtn.onclick=()=>startGame(currentSection);
+}
+
+/* ===== 單一主題：子題平均隨機抽題（不重複） ===== */
+function startGame(section){
+  currentQuestionIndex=0; score={correct:0,wrong:0}; userAnswers=[];
+  const all = gameData[section].questions;
+
+  // 分桶：依子題標籤
+  const bucketsMap = new Map();
+  all.forEach(q=>{
+    const tag = autoTag(section, q);
+    (bucketsMap.get(tag) || bucketsMap.set(tag,[]).get(tag)).push(q);
+  });
+  const buckets = [...bucketsMap.entries()].map(([tag, list])=>({tag, list}));
+
+  // 平均配額
+  const per = Math.max(1, Math.floor(QUESTIONS_PER_ROUND / buckets.length));
+  let remain = QUESTIONS_PER_ROUND - per * buckets.length;
+
+  // 先從每個子題袋各取 per 題
+  let pool=[];
+  buckets.forEach(b=>{
+    const idxs = takeNFromBag(section, b.list.length, Math.min(per,b.list.length), b.tag);
+    pool.push(...idxs.map(i => ({...b.list[i], __tag:b.tag})));
+  });
+  // 剩餘名額：輪流補各子題（各自題袋）
+  let rr=0; const order=[...buckets.keys()];
+  while(remain>0 && buckets.length){
+    const b = buckets[rr % buckets.length];
+    const idxs = takeNFromBag(section, b.list.length, 1, b.tag);
+    pool.push({...b.list[idxs[0]], __tag:b.tag});
+    rr++; remain--;
+  }
+
+  // 交錯排列避免同子題連段
+  questions = interleaveByKey(pool, q=>q.__tag);
+
+  // 進入遊戲
+  tutorialScreen.classList.add('hidden');gameScreen.classList.remove('hidden');resultsScreen.classList.add('hidden');
+  gameTitle.textContent=gameData[section].title+'';
+  displayQuestion();updateScore();
+}
+
+/* ===== 綜合挑戰：四組平均（不重複） ===== */
+function startMixedChallenge(){
+  currentSection='mixed'; currentQuestionIndex=0; score={correct:0,wrong:0}; userAnswers=[];
+  const secs=['o_uo','eng_ong','en_eng','finals'].filter(s=>gameData[s]?.questions?.length);
+  const per=Math.floor(QUESTIONS_PER_ROUND/secs.length); let remain=QUESTIONS_PER_ROUND - per*secs.length;
+
+  let pool=[];
+  secs.forEach(s=>{
+    const all=gameData[s].questions;
+    const idxs=takeNFromBag(s, all.length, Math.min(per,all.length), '全部');
+    pool.push(...idxs.map(i=>({...all[i], __sec:s})));
+  });
+  // 輪流補
+  let rr=0;
+  while(remain>0){
+    const s = secs[rr % secs.length];
+    const all=gameData[s].questions;
+    const idxs=takeNFromBag(s, all.length, 1, '全部');
+    pool.push({...all[idxs[0]], __sec:s});
+    rr++; remain--;
+  }
+  // 交錯排列避免同組連段
+  questions = interleaveByKey(pool, q=>q.__sec);
+
+  mainMenu.classList.add('hidden'); tutorialScreen.classList.add('hidden'); resultsScreen.classList.add('hidden'); gameScreen.classList.remove('hidden');
+  gameTitle.textContent='綜合挑戰';
+  displayQuestion(); updateScore();
+}
+
+/* ===== 注音 DOM（˙ 為容器級 .zhuyin-dot） ===== */
+function createZhuyinHTML(zhStr, isHard=false){
+  const tones=['ˊ','ˇ','ˋ','˙']; let tone=''; const glyphs=[];
+  for(const ch of zhStr){ if(tones.includes(ch)) tone=ch; else glyphs.push(ch); }
+  const spans=glyphs.map((g,i)=>{ const t=(tone&&tone!=='˙'&&i===glyphs.length-1)?`<span class="zhuyin-tone">${tone}</span>`:''; return `<span class="zhuyin-glyph">${g}${t}</span>`;});
+  const dot=(tone==='˙')?`<span class="zhuyin-dot">˙</span>`:'';
+  const hardClass=isHard?'font-bold':'';
+  return `<div class="zhuyin-part ${hardClass}">${dot}${spans.join('')}</div>`;
+}
+
+/* ===== 題目顯示／核對：維持既有 ===== */
+function detectHardIndex(q){
+  const s1=new Set(q.options.map(o=>o[0])), s2=new Set(q.options.map(o=>o[1]));
+  const v1=s1.size>1, v2=s2.size>1; if(v1&&!v2) return 0; if(!v1&&v2) return 1; return Math.random()<.5?0:1;
+}
+function renderFixedRow(el, zh){ el.innerHTML=`<div class="fixed-zh"><div class="zh-wrap">${createZhuyinHTML(zh)}</div></div>`; }
+function renderOptionRow(el, hardIndex, candidates, answer){
+  el.innerHTML=''; const wrap=document.createElement('div');wrap.className='opts-row';
+  candidates.forEach(cand=>{
+    const pair=(hardIndex===0)?[cand,answer[1]]:[answer[0],cand];
+    const btn=document.createElement('button'); btn.className='btn zh-option'; btn.dataset.value=JSON.stringify(pair);
+    btn.innerHTML=`<div class="zh-wrap">${createZhuyinHTML(cand)}</div>`; btn.onclick=()=>checkAnswer(pair,hardIndex); wrap.appendChild(btn);
+  }); el.appendChild(wrap);
+}
+function displayQuestion(){
+  feedback.textContent=''; nextBtn.classList.add('hidden'); finishBtn.classList.add('hidden');
+  if(currentQuestionIndex>=questions.length){showResults();return;}
+  const q=questions[currentQuestionIndex]; const [c1,c2]=q.word.split(' '); const hardIndex=detectHardIndex(q);
+  hanzi1.textContent=c1; hanzi2.textContent=c2;
+  const say=(c1||'')+(c2||''); setTimeout(()=>speak(say),120);
+  hanzi1.onclick=hanzi2.onclick=()=>speak(say); listenBtn.onclick=()=>speak(say);
+
+  let candidates=[...new Set(q.options.map(o=>o[hardIndex]))];
+  if(candidates.length===1){ const wrong=q.options.find(opt=>JSON.stringify(opt)!==JSON.stringify(q.answer)); if(wrong) candidates.push(wrong[hardIndex]); }
+  candidates=shuffleArray(candidates);
+
+  if(hardIndex===0){ renderOptionRow(rightRow1,0,candidates,q.answer); renderFixedRow(rightRow2,q.answer[1]); }
+  else { renderFixedRow(rightRow1,q.answer[0]); renderOptionRow(rightRow2,1,candidates,q.answer); }
+  requestAnimationFrame(syncDims);
+}
+function speak(text){
+  if(!('speechSynthesis' in window)){alert('抱歉，您的瀏覽器不支援語音功能。');return;}
+  speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); u.lang='zh-TW'; if(zhTWVoice){u.voice=zhTWVoice;} u.rate=0.8; speechSynthesis.speak(u);
+}
+function checkAnswer(user, hardIndex){
+  const q=questions[currentQuestionIndex], correct=q.answer;
+  userAnswers.push({question:q.word,userAnswer:user,correctAnswer:correct,hardIndex});
+  const ok=JSON.stringify(user)===JSON.stringify(correct);
+  if(ok){score.correct++;feedback.innerHTML=`<span class="text-green-600">答對了！ ✨</span>`;playSound('correct');}
+  else  {score.wrong++;feedback.innerHTML=`<span class="text-red-500">答錯了！</span>`;playSound('wrong');}
+  updateScore();
+  document.querySelectorAll('.opts-row .zh-option').forEach(btn=>{
+    btn.disabled=true; const v=btn.dataset.value;
+    if(v===JSON.stringify(correct)) btn.classList.add('correct'); else if(v===JSON.stringify(user)) btn.classList.add('wrong');
+  });
+  if(currentQuestionIndex<questions.length-1) nextBtn.classList.remove('hidden'); else finishBtn.classList.remove('hidden');
+}
+function nextQuestion(){currentQuestionIndex++;displayQuestion();}
+function updateScore(){scoreDisplay.textContent=`答對: ${score.correct} | 答錯: ${score.wrong}`;}
+
+/* ===== 回顧 ===== */
+function showResults(){
+  gameScreen.classList.add('hidden');resultsScreen.classList.remove('hidden');
+  const total=questions.length; const scoreNum=total>0?Math.round((score.correct/total)*100):0;
+  document.getElementById('final-score').textContent=`得分：${scoreNum} 分（答對 ${score.correct} / 共 ${total} 題）`;
+  const body=document.getElementById('results-table-body'); body.innerHTML='';
+  userAnswers.forEach(item=>{
+    const ok=JSON.stringify(item.userAnswer)===JSON.stringify(item.correctAnswer);
+    const row=document.createElement('tr'); row.className= ok?'bg-green-50':'bg-red-50';
+    const [c1,c2]=item.question.split(' '); const say=(c1||'')+(c2||'');
+    const ua_zh1=createZhuyinHTML(item.userAnswer[0], item.hardIndex===0);
+    const ua_zh2=createZhuyinHTML(item.userAnswer[1], item.hardIndex===1);
+    const ca_zh1=createZhuyinHTML(item.correctAnswer[0], item.hardIndex===0);
+    const ca_zh2=createZhuyinHTML(item.correctAnswer[1], item.hardIndex===1);
+    row.innerHTML=`
+      <td class="p-3 border-b align-middle">
+        <div class="flex items-center justify-center gap-2">
+          <div class="text-2xl leading-tight">${c1}<br>${c2}</div>
+          <button onclick="speak('${say}')" class="btn btn-secondary p-2 text-xs">🔊</button>
+        </div>
+      </td>
+      <td class="p-3 border-b align-middle result-zhuyin-cell ${ok?'text-green-700':'text-red-700'}"><div class="flex gap-3 justify-center">${ua_zh1}${ua_zh2}</div></td>
+      <td class="p-3 border-b align-middle result-zhuyin-cell"><div class="flex gap-3 justify-center">${ca_zh1}${ca_zh2}</div></td>`;
+    body.appendChild(row);
+  });
+  const redo=document.getElementById('redo-wrong-btn');
+  if(score.wrong>0){redo.classList.remove('hidden');redo.onclick=startRedoWrong;} else {redo.classList.add('hidden');redo.onclick=null;}
+}
+function startRedoWrong(){
+  const wrong=userAnswers.filter(x=>JSON.stringify(x.userAnswer)!==JSON.stringify(x.correctAnswer));
+  if(!wrong.length) return;
+  const map=new Map(questions.map(q=>[q.word,q]));
+  const wrongQs=wrong.map(w=>map.get(w.question)).filter(Boolean);
+  currentQuestionIndex=0;score={correct:0,wrong:0};questions=shuffleArray(wrongQs).slice(0,QUESTIONS_PER_ROUND);userAnswers=[];
+  resultsScreen.classList.add('hidden');gameScreen.classList.remove('hidden');gameTitle.textContent=gameTitle.textContent.replace(/（重做錯題）?$/,'（重做錯題）');
+  displayQuestion();updateScore();
+}
+
+/* ===== 返回主選單 ===== */
+function showMenu(){gameScreen.classList.add('hidden');resultsScreen.classList.add('hidden');tutorialScreen.classList.add('hidden');mainMenu.classList.remove('hidden');}
+
+</script>
+</main>
+
+<footer class="w-full text-center text-gray-700 py-4 text-sm">
+  <div>© 2025 Christina Yu. All rights reserved.</div>
+  <div style="margin-top:10px;">
+    <a href="https://www.mamahowma.com/2025/09/bopomofo-game.html" target="_blank" rel="noopener" aria-label="Info"><i class="fa-solid fa-circle-info fa-xl fa-fw"></i></a>　
+    <a href="mailto:mamahowma@gmail.com" aria-label="Email"><i class="fa-solid fa-envelope fa-xl fa-fw"></i></a>　
+    <a href="https://www.facebook.com/mamahowma" target="_blank" rel="noopener" aria-label="Facebook"><i class="fa-brands fa-facebook fa-xl fa-fw"></i></a>　
+    <a href="https://portaly.cc/mamahowma/support" target="_blank" rel="noopener" aria-label="Support"><i class="fa-solid fa-mug-hot fa-xl fa-fw"></i></a>
+  </div>
+</footer>
+
+</body>
+</html>
