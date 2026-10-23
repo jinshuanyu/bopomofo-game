@@ -146,14 +146,12 @@ const gameData = {
 {word:'潑 水',answer:['ㄆㄛ','ㄕㄨㄟˇ'],options:[['ㄆㄛ','ㄕㄨㄟˇ'],['ㄆㄨㄛ','ㄕㄨㄟˇ']]},
 {word:'外 婆',answer:['ㄨㄞˋ','ㄆㄛˊ'],options:[['ㄨㄞˋ','ㄆㄛˊ'],['ㄨㄞˋ','ㄆㄨㄛˊ']]},
 {word:'剖 面',answer:['ㄆㄡˇ','ㄇㄧㄢˋ'],options:[['ㄆㄡˇ','ㄇㄧㄢˋ'],['ㄆㄛˇ','ㄇㄧㄢˋ']]},
-{word:'蘑 菇',answer:['ㄇㄛˊ','ㄍㄨ'],options:[['ㄇㄛˊ','ㄍㄨ'],['ㄇㄨㄛˊ','ㄍㄨ']]},
 {word:'摩 擦',answer:['ㄇㄛˊ','ㄘㄚ'],options:[['ㄇㄛˊ','ㄘㄚ'],['ㄇㄨㄛˊ','ㄘㄚ']]},
 {word:'抹 布',answer:['ㄇㄛˇ','ㄅㄨˋ'],options:[['ㄇㄛˇ','ㄅㄨˋ'],['ㄇㄨㄛˇ','ㄅㄨˋ']]},
 {word:'計 謀',answer:['ㄐㄧˋ','ㄇㄡˊ'],options:[['ㄐㄧˋ','ㄇㄡˊ'],['ㄐㄧˋ','ㄇㄛˊ']]},
 {word:'佛 教',answer:['ㄈㄛˊ','ㄐㄧㄠˋ'],options:[['ㄈㄛˊ','ㄐㄧㄠˋ'],['ㄈㄨㄛˊ','ㄐㄧㄠˋ']]},
 
 {word:'多 少',answer:['ㄉㄨㄛ','ㄕㄠˇ'],options:[['ㄉㄨㄛ','ㄕㄠˇ'],['ㄉㄛ','ㄕㄠˇ']]},
-{word:'花 朵',answer:['ㄏㄨㄚ','ㄉㄨㄛˇ'],options:[['ㄏㄨㄚ','ㄉㄨㄛˇ'],['ㄏㄨㄚ','ㄉㄛˇ']]},
 {word:'蝌 蚪',answer:['ㄎㄜ','ㄉㄡˇ'],options:[['ㄎㄜ','ㄉㄡˇ'],['ㄎㄜ','ㄉㄛˇ']]},
 {word:'紅 豆',answer:['ㄏㄨㄥˊ','ㄉㄡˋ'],options:[['ㄏㄨㄥˊ','ㄉㄡˋ'],['ㄏㄨㄥˊ','ㄉㄛˋ']]},
 {word:'鴕 鳥',answer:['ㄊㄨㄛˊ','ㄋㄧㄠˇ'],options:[['ㄊㄨㄛˊ','ㄋㄧㄠˇ'],['ㄊㄛˊ','ㄋㄧㄠˇ']]},
@@ -367,7 +365,6 @@ const gameData = {
   // —— ㄩㄣ（對照 ㄩㄢ）——
   {word:'雲 朵',answer:['ㄩㄣˊ','ㄉㄨㄛˇ'],options:[['ㄩㄣˊ','ㄉㄨㄛˇ'],['ㄩㄢˊ','ㄉㄨㄛˇ']]},
   {word:'隕 石',answer:['ㄩㄣˇ','ㄕˊ'],options:[['ㄩㄣˇ','ㄕˊ'],['ㄩㄢˇ','ㄕˊ']]},
-  {word:'暈 車',answer:['ㄩㄣ','ㄔㄜ'],options:[['ㄩㄣ','ㄔㄜ'],['ㄩㄢ','ㄔㄜ']]},
   {word:'平 均',answer:['ㄆㄧㄥˊ','ㄐㄩㄣ'],options:[['ㄆㄧㄥˊ','ㄐㄩㄣ'],['ㄆㄧㄥˊ','ㄐㄩㄢ']]},
   {word:'軍 艦',answer:['ㄐㄩㄣ','ㄐㄧㄢˋ'],options:[['ㄐㄩㄣ','ㄐㄧㄢˋ'],['ㄐㄩㄢ','ㄐㄧㄢˋ']]},
   {word:'裙 子',answer:['ㄑㄩㄣˊ','˙ㄗ'],options:[['ㄑㄩㄣˊ','˙ㄗ'],['ㄑㄩㄢˊ','˙ㄗ']]},
@@ -498,13 +495,21 @@ function lsSet(key, val){ try{localStorage.setItem(key, JSON.stringify(val));}ca
 function buildShuffledIndexBag(total){ const idx=Array.from({length:total},(_,i)=>i); return shuffleArray(idx); }
 function loadBag(section, total, subtag){
   const k=bagKey(section, subtag); let bag=lsGet(k, null);
-  if(!bag || !Array.isArray(bag) || bag.some(n=>typeof n!=='number')){ bag=buildShuffledIndexBag(total); lsSet(k, bag); }
+  // 題庫增刪後，舊題袋裡可能有超出範圍的索引 → 重建
+  if(!bag || !Array.isArray(bag) || bag.some(n=>typeof n!=='number' || n<0 || n>=total)){ bag=buildShuffledIndexBag(total); lsSet(k, bag); }
   return bag;
 }
 function saveBag(section, bag, subtag){ lsSet(bagKey(section, subtag), bag); }
-function takeNFromBag(section, total, n, subtag){
-  let bag=loadBag(section,total,subtag); const picked=[];
-  while(picked.length<Math.min(n,total)){ if(bag.length===0) bag=buildShuffledIndexBag(total); picked.push(bag.shift()); }
+// isUsed(i)：該題本回合已出過（同一個詞）就跳過，跳過的題放回題袋前面，下回合優先出
+function takeNFromBag(section, total, n, subtag, isUsed){
+  let bag=loadBag(section,total,subtag); const picked=[], skipped=[]; let refilled=false;
+  while(picked.length<Math.min(n,total)){
+    if(bag.length===0){ if(refilled) break; bag=buildShuffledIndexBag(total); refilled=true; }
+    const i=bag.shift();
+    if(picked.includes(i) || (isUsed && isUsed(i))){ skipped.push(i); continue; }
+    picked.push(i);
+  }
+  skipped.reverse().forEach(i=>{ if(!bag.includes(i)) bag.unshift(i); });
   saveBag(section,bag,subtag); return picked;
 }
 
@@ -565,18 +570,22 @@ function startGame(section){
   let remain = QUESTIONS_PER_ROUND - per * buckets.length;
 
   // 先從每個子題袋各取 per 題
-  let pool=[];
+  let pool=[]; const usedWords=new Set();
   buckets.forEach(b=>{
-    const idxs = takeNFromBag(section, b.list.length, Math.min(per,b.list.length), b.tag);
+    const idxs = takeNFromBag(section, b.list.length, Math.min(per,b.list.length), b.tag, i=>usedWords.has(b.list[i].word));
+    idxs.forEach(i=>usedWords.add(b.list[i].word));
     pool.push(...idxs.map(i => ({...b.list[i], __tag:b.tag})));
   });
   // 剩餘名額：輪流補各子題（各自題袋）
-  let rr=0; const order=[...buckets.keys()];
-  while(remain>0 && buckets.length){
+  let rr=0, misses=0; const order=[...buckets.keys()];
+  while(remain>0 && buckets.length && misses<buckets.length){
     const b = buckets[rr % buckets.length];
-    const idxs = takeNFromBag(section, b.list.length, 1, b.tag);
+    const idxs = takeNFromBag(section, b.list.length, 1, b.tag, i=>usedWords.has(b.list[i].word));
+    rr++;
+    if(!idxs.length){ misses++; continue; }
+    misses=0; usedWords.add(b.list[idxs[0]].word);
     pool.push({...b.list[idxs[0]], __tag:b.tag});
-    rr++; remain--;
+    remain--;
   }
 
   // 交錯排列避免同子題連段
@@ -594,20 +603,25 @@ function startMixedChallenge(){
   const secs=['o_uo','eng_ong','en_eng','finals'].filter(s=>gameData[s]?.questions?.length);
   const per=Math.floor(QUESTIONS_PER_ROUND/secs.length); let remain=QUESTIONS_PER_ROUND - per*secs.length;
 
-  let pool=[];
+  // 同一個詞可能出現在不同關卡（如 龍舟、朋友），用 usedWords 避免同回合重複
+  let pool=[]; const usedWords=new Set();
   secs.forEach(s=>{
     const all=gameData[s].questions;
-    const idxs=takeNFromBag(s, all.length, Math.min(per,all.length), '全部');
+    const idxs=takeNFromBag(s, all.length, Math.min(per,all.length), '全部', i=>usedWords.has(all[i].word));
+    idxs.forEach(i=>usedWords.add(all[i].word));
     pool.push(...idxs.map(i=>({...all[i], __sec:s})));
   });
   // 輪流補
-  let rr=0;
-  while(remain>0){
+  let rr=0, misses=0;
+  while(remain>0 && misses<secs.length){
     const s = secs[rr % secs.length];
     const all=gameData[s].questions;
-    const idxs=takeNFromBag(s, all.length, 1, '全部');
+    const idxs=takeNFromBag(s, all.length, 1, '全部', i=>usedWords.has(all[i].word));
+    rr++;
+    if(!idxs.length){ misses++; continue; }
+    misses=0; usedWords.add(all[idxs[0]].word);
     pool.push({...all[idxs[0]], __sec:s});
-    rr++; remain--;
+    remain--;
   }
   // 交錯排列避免同組連段
   questions = interleaveByKey(pool, q=>q.__sec);
